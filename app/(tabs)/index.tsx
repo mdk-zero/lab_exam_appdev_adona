@@ -1,98 +1,414 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Modal } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { quiz } from "@/constants/quiz-data";
+import { Entypo, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const CountdownTimer = ({ seconds = 30, onTimeUp, resetKey }) => {
+  const [secondsLeft, setSecondsLeft] = useState(seconds);
+  const [isActive, setIsActive] = useState(true);
+  const timerRef = useRef(null);
 
-export default function HomeScreen() {
+  useEffect(() => {
+    setSecondsLeft(seconds);
+    setIsActive(true);
+  }, [resetKey, seconds]);
+
+  useEffect(() => {
+    if (isActive && secondsLeft > 0) {
+      timerRef.current = setInterval(() => {
+        setSecondsLeft((prevTime) => prevTime - 1);
+      }, 1000);
+    } else if (secondsLeft === 0) {
+      clearInterval(timerRef.current);
+      setIsActive(false);
+      onTimeUp?.();
+    }
+    return () => clearInterval(timerRef.current);
+  }, [isActive, secondsLeft, onTimeUp]);
+
+  const formatTime = (timeInSeconds) => {
+    return timeInSeconds.toString();
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
-
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <Text
+      style={{
+        fontSize: 18,
+        fontWeight: "900",
+        color: secondsLeft <= 5 ? "#EF4444" : "#1E293B",
+      }}
+    >
+      {formatTime(secondsLeft)}s
+    </Text>
   );
-}
+};
+
+const Index = () => {
+  const [current, setCurrent] = useState(0);
+  const [score, setScore] = useState(0);
+  const [selectedOption, setSelectedOption] = useState(null);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [showTimeoutModal, setShowTimeoutModal] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [timerResetKey, setTimerResetKey] = useState(0);
+  const transitionTimeoutRef = useRef(null);
+  const isTransitioningRef = useRef(false);
+
+  useEffect(() => {
+    return () => clearTransitionTimeout();
+  }, []);
+
+  const total = quiz.length;
+  const currentQuestion = quiz[current];
+  const isLastQuestion = current === total - 1;
+
+  const clearTransitionTimeout = () => {
+    if (transitionTimeoutRef.current) {
+      clearTimeout(transitionTimeoutRef.current);
+      transitionTimeoutRef.current = null;
+    }
+  };
+
+  const handleNext = useCallback(() => {
+    if (isTransitioningRef.current) return;
+    isTransitioningRef.current = true;
+    clearTransitionTimeout();
+
+    setSelectedOption(null);
+    setShowFeedback(false);
+    setShowTimeoutModal(false);
+
+    if (isLastQuestion) {
+      setShowResults(true);
+      isTransitioningRef.current = false;
+    } else {
+      setCurrent((prev) => prev + 1);
+      setTimerResetKey((prev) => prev + 1);
+      transitionTimeoutRef.current = setTimeout(() => {
+        isTransitioningRef.current = false;
+      }, 300);
+    }
+  }, [isLastQuestion]);
+
+  const handleTimeUp = useCallback(() => {
+    if (isTransitioningRef.current) return;
+    setShowTimeoutModal(true);
+    transitionTimeoutRef.current = setTimeout(() => {
+      handleNext();
+    }, 1500);
+  }, [handleNext]);
+
+  const handleOptionPress = (option) => {
+    if (showFeedback || showTimeoutModal || isTransitioningRef.current) return;
+
+    setSelectedOption(option);
+    setShowFeedback(true);
+
+    if (option === currentQuestion.answer) {
+      setScore((prev) => prev + 1);
+    }
+
+    transitionTimeoutRef.current = setTimeout(() => {
+      handleNext();
+    }, 1500);
+  };
+
+  const handleRestart = () => {
+    setCurrent(0);
+    setScore(0);
+    setSelectedOption(null);
+    setShowFeedback(false);
+    setShowTimeoutModal(false);
+    setShowResults(false);
+    setTimerResetKey((prev) => prev + 1);
+  };
+
+  const getOptionStyle = (option) => {
+    if (!showFeedback && !showTimeoutModal) return styles.options;
+
+    if (option === currentQuestion.answer) {
+      return [styles.options, styles.correctOption];
+    }
+
+    if (option === selectedOption && option !== currentQuestion.answer) {
+      return [styles.options, styles.wrongOption];
+    }
+
+    return [styles.options, styles.dimmedOption];
+  };
+
+  const getOptionTextStyle = (option) => {
+    if (!showFeedback && !showTimeoutModal) return styles.optionText;
+
+    if (option === currentQuestion.answer) {
+      return [styles.optionText, styles.correctOptionText];
+    }
+
+    if (option === selectedOption && option !== currentQuestion.answer) {
+      return [styles.optionText, styles.wrongOptionText];
+    }
+
+    return [styles.optionText, styles.dimmedOptionText];
+  };
+
+  if (showResults) {
+    return (
+      <SafeAreaView edges={["top"]} style={styles.container}>
+        <View style={styles.resultsContainer}>
+          <Entypo name="trophy" size={80} color="#3B82F6" />
+          <Text style={styles.resultsTitle}>Exam Results</Text>
+          <Text style={styles.resultsScore}>
+            Score: {score} / {total} Correct
+          </Text>
+          <Text style={styles.resultsPercent}>{(score / total) * 100}%</Text>
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 10,
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 20,
+            }}
+          >
+            <MaterialCommunityIcons name="file-document-multiple" size={16} color="#355155" />
+            <Text style={styles.resultsMessage}>Review the core fundamentals and try again.</Text>
+          </View>
+          <TouchableOpacity style={styles.button} onPress={handleRestart}>
+            <Ionicons name="reload" size={24} color="white" />
+            <Text style={styles.buttonText}>Restart Laboratory Exam</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView edges={["top"]} style={styles.container}>
+      <View style={{ flex: 1, padding: 20 }}>
+        <View style={{ gap: 10 }}>
+          <View style={styles.header}>
+            <View style={styles.textHeader}>
+              <Text style={{ fontWeight: "900", color: "#3B82F6" }}>
+                {currentQuestion.title.toUpperCase()}
+              </Text>
+              <Text style={{ fontSize: 18, fontWeight: "500" }}>
+                Question {current + 1} of {total}
+              </Text>
+            </View>
+            <View style={styles.timer}>
+              <Entypo name="stopwatch" size={18} color="black" />
+              <CountdownTimer seconds={30} onTimeUp={handleTimeUp} resetKey={timerResetKey} />
+            </View>
+          </View>
+          <View style={styles.progressBarContainer}>
+            <View
+              style={[styles.progressBarFill, { width: `${((current + 1) / total) * 100}%` }]}
+            />
+          </View>
+        </View>
+        <ScrollView style={{ gap: 10, paddingVertical: 20 }}>
+          <Text style={{ fontSize: 24, fontWeight: "900" }}>{currentQuestion.question}</Text>
+          <View style={styles.optionsContainer}>
+            {currentQuestion.options.map((option, index) => (
+              <TouchableOpacity
+                key={index}
+                style={getOptionStyle(option)}
+                onPress={() => handleOptionPress(option)}
+                disabled={showFeedback || showTimeoutModal}
+              >
+                <Text style={getOptionTextStyle(option)}>{option}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+      <View style={styles.nextButton}>
+        <TouchableOpacity
+          style={[styles.button, !showFeedback && !showTimeoutModal && styles.disabledButton]}
+          disabled={!showFeedback && !showTimeoutModal}
+          onPress={handleNext}
+        >
+          <Text style={styles.buttonText}>
+            {isLastQuestion ? "Finish Quiz" : "Proceed to Next Question"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <Modal transparent visible={showTimeoutModal} animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Entypo name="stopwatch" size={48} color="#EF4444" />
+            <Text style={styles.modalTitle}>Time&apos;s Up!</Text>
+            <Text style={styles.modalMessage}>
+              You ran out of time. Moving to the next question...
+            </Text>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+};
+
+export default Index;
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  textHeader: {
+    flexDirection: "column",
+    gap: 5,
+  },
+  timer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+  },
+  progressBarContainer: {
+    width: "100%",
+    height: 10,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: "#3B82F6",
+    borderRadius: 10,
+  },
+  optionsContainer: {
+    paddingVertical: 20,
+    gap: 10,
+    width: "100%",
+  },
+  options: {
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
+  },
+  optionText: {
+    fontSize: 18,
+    fontWeight: "500",
+    color: "#1E293B",
+  },
+  correctOption: {
+    backgroundColor: "#F0FDF4",
+    borderColor: "#22C55E",
+    borderWidth: 2,
+  },
+  correctOptionText: {
+    color: "#22C55E",
+    fontWeight: "700",
+  },
+  wrongOption: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#EF4444",
+    borderWidth: 2,
+  },
+  wrongOptionText: {
+    color: "#EF4444",
+    fontWeight: "700",
+  },
+  dimmedOption: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#E2E8F0",
+    opacity: 0.6,
+  },
+  dimmedOptionText: {
+    color: "#94A3B8",
+  },
+  nextButton: {
+    borderTopWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  button: {
+    width: "100%",
+    backgroundColor: "#3B82F6",
+    padding: 20,
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  disabledButton: {
+    backgroundColor: "#93C5FD",
+  },
+  buttonText: {
+    color: "#F8FAFC",
+    fontWeight: "900",
+    fontSize: 18,
+    textAlign: "center",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 30,
+    alignItems: "center",
+    gap: 15,
+    width: "100%",
+    maxWidth: 320,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#1E293B",
+  },
+  modalMessage: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#64748B",
+    textAlign: "center",
+  },
+  resultsContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+    gap: 20,
+  },
+  resultsTitle: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: "#1E293B",
+  },
+  resultsScore: {
+    fontSize: 18,
+    fontWeight: "500",
+    color: "#64748B",
+  },
+  resultsPercent: {
+    fontSize: 64,
+    fontWeight: "900",
+    color: "#3B82F6",
+  },
+  resultsMessage: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#334155",
+    textAlign: "center",
   },
 });
