@@ -1,8 +1,8 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Modal } from "react-native";
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { quiz } from "@/constants/quiz-data";
-import { Entypo, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Entypo, Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
 
 const CountdownTimer = ({ seconds = 30, onTimeUp, resetKey }) => {
   const [secondsLeft, setSecondsLeft] = useState(seconds);
@@ -49,7 +49,6 @@ const Index = () => {
   const [score, setScore] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [showTimeoutModal, setShowTimeoutModal] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [timerResetKey, setTimerResetKey] = useState(0);
   const transitionTimeoutRef = useRef(null);
@@ -77,7 +76,6 @@ const Index = () => {
 
     setSelectedOption(null);
     setShowFeedback(false);
-    setShowTimeoutModal(false);
 
     if (isLastQuestion) {
       setShowResults(true);
@@ -93,14 +91,13 @@ const Index = () => {
 
   const handleTimeUp = useCallback(() => {
     if (isTransitioningRef.current) return;
-    setShowTimeoutModal(true);
-    transitionTimeoutRef.current = setTimeout(() => {
-      handleNext();
-    }, 1500);
+    Alert.alert("Time's Up!", "You ran out of time. Moving to the next question.", [
+      { text: "OK", onPress: handleNext },
+    ]);
   }, [handleNext]);
 
   const handleOptionPress = (option) => {
-    if (showFeedback || showTimeoutModal || isTransitioningRef.current) return;
+    if (showFeedback || isTransitioningRef.current) return;
 
     setSelectedOption(option);
     setShowFeedback(true);
@@ -119,13 +116,12 @@ const Index = () => {
     setScore(0);
     setSelectedOption(null);
     setShowFeedback(false);
-    setShowTimeoutModal(false);
     setShowResults(false);
     setTimerResetKey((prev) => prev + 1);
   };
 
   const getOptionStyle = (option) => {
-    if (!showFeedback && !showTimeoutModal) return styles.options;
+    if (!showFeedback) return styles.options;
 
     if (option === currentQuestion.answer) {
       return [styles.options, styles.correctOption];
@@ -139,7 +135,7 @@ const Index = () => {
   };
 
   const getOptionTextStyle = (option) => {
-    if (!showFeedback && !showTimeoutModal) return styles.optionText;
+    if (!showFeedback) return styles.optionText;
 
     if (option === currentQuestion.answer) {
       return [styles.optionText, styles.correctOptionText];
@@ -156,7 +152,7 @@ const Index = () => {
     return (
       <SafeAreaView edges={["top"]} style={styles.container}>
         <View style={styles.resultsContainer}>
-          <Entypo name="trophy" size={80} color="#3B82F6" />
+          <FontAwesome5 name="graduation-cap" size={80} color="#3B82F6" />
           <Text style={styles.resultsTitle}>Exam Results</Text>
           <Text style={styles.resultsScore}>
             Score: {score} / {total} Correct
@@ -215,7 +211,7 @@ const Index = () => {
                 key={index}
                 style={getOptionStyle(option)}
                 onPress={() => handleOptionPress(option)}
-                disabled={showFeedback || showTimeoutModal}
+                disabled={showFeedback}
               >
                 <Text style={getOptionTextStyle(option)}>{option}</Text>
               </TouchableOpacity>
@@ -225,8 +221,8 @@ const Index = () => {
       </View>
       <View style={styles.nextButton}>
         <TouchableOpacity
-          style={[styles.button, !showFeedback && !showTimeoutModal && styles.disabledButton]}
-          disabled={!showFeedback && !showTimeoutModal}
+          style={[styles.button, !showFeedback && styles.disabledButton]}
+          disabled={!showFeedback}
           onPress={handleNext}
         >
           <Text style={styles.buttonText}>
@@ -234,18 +230,6 @@ const Index = () => {
           </Text>
         </TouchableOpacity>
       </View>
-
-      <Modal transparent visible={showTimeoutModal} animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Entypo name="stopwatch" size={48} color="#EF4444" />
-            <Text style={styles.modalTitle}>Time&apos;s Up!</Text>
-            <Text style={styles.modalMessage}>
-              You ran out of time. Moving to the next question...
-            </Text>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
@@ -354,33 +338,6 @@ const styles = StyleSheet.create({
     color: "#F8FAFC",
     fontWeight: "900",
     fontSize: 18,
-    textAlign: "center",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 30,
-    alignItems: "center",
-    gap: 15,
-    width: "100%",
-    maxWidth: 320,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: "900",
-    color: "#1E293B",
-  },
-  modalMessage: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#64748B",
     textAlign: "center",
   },
   resultsContainer: {
